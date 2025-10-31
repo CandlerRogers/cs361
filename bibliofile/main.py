@@ -22,12 +22,12 @@ def print_header():
 def welcome_page():
     print("\n\nWelcome to Bibliofile:")
     print("A catalogue for your home library\n")
-    selection = input("Enter 1 to use the app or 0 to exit: ")
-    while selection.strip() != "1" and selection.strip() != "0":
+    selection = input("Press the Enter key to use the app or enter 0 to exit: ")
+    while selection != "" and selection.strip() != "0":
         print(f"\nYou entered: {selection}. Please try again.")
-        selection = input("Enter 1 to use the app or 0 to exit: ")
+        selection = input("Press the Enter key to use the app or enter 0 to exit: ")
     match selection:
-        case "1":
+        case "":
             home_menu_page()
         case "0": 
             print("Thanks for using Bibliofile!")
@@ -50,7 +50,7 @@ def home_menu_page():
         case "1":
             name_collection_page()
         case "2":
-            view_collection_page
+            view_collection_page()
         case "3":
             add_book_page()
         case "4":
@@ -145,8 +145,8 @@ def name_collection_page():
     current_name = get_active_collection()
     print(f"\n~~~~~~~~~~~~~~~~~~~~\n {current_name}\n~~~~~~~~~~~~~~~~~~~~")
     print(f"\nThe current collection name is: {current_name}\n")
-    new_name = input("\nPlease enter a new name for your collection or 0 to return to the previous menu: ")
-    while new_name != '0':
+    new_name = input("\nPlease enter a new name for your collection or press Enter to return to the previous menu: ")
+    while new_name != '':
         print(f"\nYou entered the new name: {new_name}\n")
         confirmed = input("Type confirm or retry: ").lower()
         while confirmed not in ["confirm",  "retry"]:
@@ -156,18 +156,141 @@ def name_collection_page():
             rename_collection(get_active_collection(), new_name)
             name_collection_page()
         else: 
-            new_name = input("\nPlease enter a new name for your collection or 0 to return to the previous menu: ")
-    if new_name == "0":
+            new_name = input("\nPlease enter a new name for your collection or press Enter to return to the previous menu: ")
+    if new_name == "":
         home_menu_page()
     else: name_collection_page()
 
 def view_collection_page():
-    return
+    print_header()
+    print(f"~~~~~~~~~~~~~~~~~~~~\n {get_active_collection()}\n~~~~~~~~~~~~~~~~~~~~")
+    print("1. View entire collection")
+    print("2. Sort and View Collection")
+    print("3. Edit a book")
+    print("4. Return to previous page")
+    selection = input("Enter selection: ")
+    while selection not in ("1", '2', '3', '4'):
+        print(f"\nYou entered: {selection}. Please try again.")
+        input("Enter selection: ")
+
+    match selection:
+        case "1":
+            view_entire_collection_page()
+        case "2":
+            view_entire_collection_page()
+        case "3":
+            view_entire_collection_page()
+        case "4":
+            view_entire_collection_page()
+
+def view_entire_collection_page():
+    print_header()
+
+    active_table = get_active_collection()
+    if not active_table:
+        print("No active collection found.")
+        view_collection_page()
+        return
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(f'SELECT * FROM "{active_table}"')
+        books = cursor.fetchall()
+
+        print(f"\n~~~~~~~~~~~~~~~~~~~~\n {active_table}\n~~~~~~~~~~~~~~~~~~~~")
+        print(f"\nTotal books in this collection: {len(books)}\n")
+
+        if not books:
+            print("No books found in your collection yet.")
+        else:
+            # Print a table-like output
+            print("{:<5} {:<15} {:<15} {:<30} {:<13} {:<6} {:<8} {:<9} {:<6}".format(
+                "ID", "Author First", "Author Last", "Title", "ISBN", "Read", "Loaned", "Format", "Rating"
+            ))
+            print("-" * 110)
+            for book in books:
+                print("{:<5} {:<15} {:<15} {:<30} {:<13} {:<6} {:<8} {:<9} {:<6}".format(
+                    book[0] or "",
+                    book[1] or "",
+                    book[2] or "",
+                    book[3] or "",
+                    book[4] or "",
+                    "Yes" if book[5] else "No",
+                    "Yes" if book[6] else "No",
+                    book[7] or "",
+                    book[8] or ""
+                ))
+    except sqlite3.Error as e:
+        print(f"There was an error retrieving the collection:\n{e}")
+    finally:
+        conn.close()
+
+    input("\nPress Enter to return to the collection menu...")
+    view_collection_page()
+
 
 def add_book_page():
-    return
+    print_header()
+    active_table = get_active_collection()
+
+    if not active_table:
+        print("No ollection was found.")
+        time.sleep(2)
+        home_menu_page()
+        return
+
+    print(f"\n~~~~~~~~~~~~~~~~~~~~\n Add a Book to {active_table}\n~~~~~~~~~~~~~~~~~~~~")
+
+    # Gather book info from user
+    author_first = input("Enter Author First Name (or press Enter to skip): ").strip()
+    author_last = input("Enter Author Last Name (or press Enter to skip): ").strip()
+    title = input("Enter Book Title (required): ").strip()
+    while not title:
+        print("Title cannot be empty.")
+        title = input("Enter Book Title (required): ").strip()
+
+    isbn_input = input("Enter ISBN number (or press Enter to skip): ").strip()
+    isbn = int(isbn_input) if isbn_input.isdigit() else None
+
+    # Boolean fields
+    read_input = input("Have you read this book? (y/n): ").lower().strip()
+    read = 1 if read_input in ("y", "yes") else 0
+
+    loaned_input = input("Is this book loaned out? (y/n): ").lower().strip()
+    loaned = 1 if loaned_input in ("y", "yes") else 0
+
+    # Format
+    format_input = input("Format (Digital/Physical): ").strip().capitalize()
+    while format_input not in ("Digital", "Physical", ""):
+        print("Invalid choice. Please enter 'Digital' or 'Physical'.")
+        format_input = input("Format (Digital/Physical): ").strip().capitalize()
+    format_value = format_input if format_input else None
+
+    # Rating
+    rating_input = input("Rating (1-5, or press Enter to skip): ").strip()
+    rating = int(rating_input) if rating_input.isdigit() and 1 <= int(rating_input) <= 5 else None
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(f'''
+            INSERT INTO "{active_table}" 
+            (author_first_name, author_last_name, title, isbn, read, loaned, format, rating)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (author_first, author_last, title, isbn, read, loaned, format_value, rating))
+        conn.commit()
+        print(f"\nBook '{title}' added successfully to {active_table}!\n")
+    except sqlite3.Error as e:
+        print(f"Database error while adding book:\n{e}")
+    finally:
+        conn.close()
+
+    input("Press Enter to return to the Home Menu...")
+    home_menu_page()
+
     
-    
+
                       
 if __name__ == "__main__":
     main()
